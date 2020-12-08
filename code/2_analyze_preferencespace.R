@@ -63,15 +63,17 @@ d <-  mlogit.data(data,
 
 ## Klaus' basic MNL: clogit choice sq cov12 acc175 acc1100 acc275 acc2100 bid, group(idset), if protNO~=1 
 
+start <- proc.time()
 pref_basic <-  gmnl(choice ~ bid + sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid | 0 ,
                     data=d,
                     ranp=c(cov12='n',acc175='n',acc1100='n',acc275='n',acc2100='n'),
                     model='mixl',
                     panel=TRUE,
-                    correlation=TRUE)
+                    correlation=FALSE)
 
 summary(pref_basic)
 saveRDS(pref_basic,file="estimates/pref_basic.rds")
+end <- proc.time() - start
 
 ####################################################
 #################################  ASC HETEROGENEITY
@@ -79,17 +81,18 @@ saveRDS(pref_basic,file="estimates/pref_basic.rds")
 
 data %<>% mutate(sq_income = sq * income)
 
+start <- proc.time()
 het_income <-  gmnl(choice ~ bid + sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid + sq_income | 0 ,
                     data=d,
                     ranp=c(cov12='n',acc175='n',acc1100='n',acc275='n',acc2100='n'),
                     model='mixl',
                     panel=TRUE,
-                    correlation=TRUE,
+                    correlation=FALSE,
                     seed=42)
 
 summary(het_income)
 saveRDS(het_income,file="estimates/het_income.rds")
-
+end <- proc.time() - start
 
 ####################################################
 ###############################################  WTP
