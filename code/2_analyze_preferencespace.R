@@ -33,10 +33,10 @@ lapply(packages, pkgTest)
 setwd(here())
 
 ## Read in files
-data <- as.data.table(read_csv("store/cleaned_data.csv"))
+data <- read_csv("store/cleaned_data.csv")
 
 ## drop protest. ask Klaus why does protNO==-999 in many cases? 
-data <- data[protNO!=1,]  
+data %<>% dplyr::filter(protNO!=1)  
 
 ## keep only relevant columns
 data %<>% dplyr::select(id, set, idset, # choice set variables
@@ -45,17 +45,21 @@ data %<>% dplyr::select(id, set, idset, # choice set variables
                         income) # individual characteristics, any others?
 
 ## sort and generate unique id for each alternative
+data %<>% group_by(idset) %>% mutate(alt = seq(n()))
 data %<>% arrange(id,set,idset) 
-data %<>% mutate(alt = seq(n()))
+data %<>% mutate(as.numeric(bid))
 
 ## Create mlogit data
 d <-  mlogit.data(data,
-                  id.var='id',
-                  chid.var = 'idset',
+                  # shape='long', 
+                  drop.index = TRUE,
+                  id.var='id', ## unique to individual_id
+                  chid.var = 'idset', ## unique to individual_id and card_id
                   choice='choice',
                   shape='long',
-                  alt.var='alt',
-                  opposite=c('bid'))
+                  alt.var='alt') ## the number alternative on each card
+                  # opposite=c('bid')) ## bid is already opposite in Klaus' cleaning
+
 
 ####################################################
 #############################################  BASIC
@@ -64,15 +68,29 @@ d <-  mlogit.data(data,
 ## Klaus' basic MNL: clogit choice sq cov12 acc175 acc1100 acc275 acc2100 bid, group(idset), if protNO~=1 
 
 start <- proc.time()
-pref_basic <-  gmnl(choice ~ bid + sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid | 0 ,
+pref_clogit <-  mlogit(choice ~ sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid,
+                    data=d)
+
+## WHY IS THIS SINGLUAR? 
+
+summary(pref_clogit)
+saveRDS(pref_clogit,file="estimates/pref_clogit.rds")
+end <- proc.time() - start
+
+####################################################
+#######################  INTRODUCE RANDOM PARAMETERS
+####################################################
+
+start <- proc.time()
+pref_rand_p <-  gmnl(choice ~ sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid | 0 ,
                     data=d,
                     ranp=c(cov12='n',acc175='n',acc1100='n',acc275='n',acc2100='n'),
                     model='mixl',
                     panel=TRUE,
                     correlation=FALSE)
 
-summary(pref_basic)
-saveRDS(pref_basic,file="estimates/pref_basic.rds")
+summary(pref_rand_p)
+saveRDS(pref_rand_p,file="estimates/pref_rand_p.rds")
 end <- proc.time() - start
 
 ####################################################
@@ -82,7 +100,7 @@ end <- proc.time() - start
 data %<>% mutate(sq_income = sq * income)
 
 start <- proc.time()
-het_income <-  gmnl(choice ~ bid + sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid + sq_income | 0 ,
+het_income <-  gmnl(choice ~ sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid + sq_income | 0 ,
                     data=d,
                     ranp=c(cov12='n',acc175='n',acc1100='n',acc275='n',acc2100='n'),
                     model='mixl',
