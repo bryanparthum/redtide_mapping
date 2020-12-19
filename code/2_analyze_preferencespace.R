@@ -42,7 +42,8 @@ data %<>% dplyr::filter(protNO!=1)
 data %<>% dplyr::select(id, set, idset, # choice set variables
                         choice,sq,cov12,acc175,acc1100,acc275,acc2100,bid, # primary variables of interest
                         watercolor2018,respirr2018,watercolor2019,respirr2019,watercolor_1m,respirr_1m, # beach observations
-                        income) # individual characteristics, any others?
+                        income, # individual characteristics, any others?
+                        cov12ec,acc175ec,acc1100ec,acc275ec,acc2100ec) # effects coding variables
 
 ## sort and generate unique id for each alternative
 data %<>% group_by(idset) %>% mutate(alt = seq(n()))
@@ -185,11 +186,14 @@ saveRDS(pref_wtp,file="output/estimates/pref_wtp.rds")
 # saveRDS(het_water_wtp,file="output/estimates/het_water_wtp.rds")
 # proc.time() - start
 
+####################################################
+#######################################  WATER COLOR
+####################################################
 
 start <- proc.time()
 pref_het_water <-  gmnl(choice ~ sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid + sq_watercolor2019 + sq_watercolor_1m | 0 ,
                    data=d,
-                   ranp=c(cov12='n',acc175='n',acc1100='n',acc275='n',acc2100='n',sq_watercolor2019='n',sq_watercolor_1m='n'),
+                   ranp=c(cov12='n',acc175='n',acc1100='n',acc275='n',acc2100='n'),
                    model='mixl',
                    panel=TRUE,
                    correlation=TRUE,
@@ -204,10 +208,36 @@ pref_het_water_wtp <- wtp.gmnl(pref_het_water, wrt = "bid")
 saveRDS(pref_het_water_wtp,file="output/estimates/pref_het_water_wtp.rds")
 proc.time() - start
 
+####################################################
+################################### WATER COLOR 2019 
+####################################################
+
+start <- proc.time()
+pref_het_water_2019 <-  gmnl(choice ~ sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid + sq_watercolor2019 | 0 ,
+                        data=d,
+                        ranp=c(cov12='n',acc175='n',acc1100='n',acc275='n',acc2100='n'),
+                        model='mixl',
+                        panel=TRUE,
+                        correlation=TRUE,
+                        seed=42,
+                        method = "bhhh",
+                        iterlim = 500,
+                        halton=NA)
+
+summary(pref_het_water_2019)
+saveRDS(pref_het_water_2019,file="output/estimates/pref_het_water_2019.rds")
+pref_het_water_2019_wtp <- wtp.gmnl(pref_het_water_2019, wrt = "bid")
+saveRDS(pref_het_water_2019_wtp,file="output/estimates/pref_het_water_2019_wtp.rds")
+proc.time() - start
+
+####################################################
+##############  WATER COLOR AND RESPIRATORY WARNINGS
+####################################################
+
 start <- proc.time()
 pref_het_water_resp <-  gmnl(choice ~ sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid + sq_watercolor2019 + sq_watercolor_1m + sq_respirr2019 + sq_respirr_1m | 0 ,
                         data=d,
-                        ranp=c(cov12='n',acc175='n',acc1100='n',acc275='n',acc2100='n',sq_watercolor2019='n',sq_watercolor_1m='n',sq_respirr2019='n',sq_respirr_1m='n'),
+                        ranp=c(cov12='n',acc175='n',acc1100='n',acc275='n',acc2100='n'),
                         model='mixl',
                         panel=TRUE,
                         correlation=TRUE,
@@ -221,5 +251,71 @@ saveRDS(pref_het_water_resp,file="output/estimates/pref_het_water_resp.rds")
 pref_het_water_resp_wtp <- wtp.gmnl(pref_het_water_resp, wrt = "bid")
 saveRDS(pref_het_water_resp_wtp,file="output/estimates/pref_het_water_resp_wtp.rds")
 proc.time() - start
+
+####################################################
+#########  WATER COLOR AND RESPIRATORY WARNINGS 2019
+####################################################
+
+start <- proc.time()
+pref_het_water_resp_2019 <-  gmnl(choice ~ sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid + sq_watercolor2019 + sq_respirr2019 | 0 ,
+                             data=d,
+                             ranp=c(cov12='n',acc175='n',acc1100='n',acc275='n',acc2100='n'),
+                             model='mixl',
+                             panel=TRUE,
+                             correlation=TRUE,
+                             seed=42,
+                             method = "bhhh",
+                             iterlim = 500,
+                             halton=NA)
+
+summary(pref_het_water_resp_2019)
+saveRDS(pref_het_water_resp_2019,file="output/estimates/pref_het_water_resp_2019.rds")
+pref_het_water_resp_2019_wtp <- wtp.gmnl(pref_het_water_resp_2019, wrt = "bid")
+saveRDS(pref_het_water_resp_2019_wtp,file="output/estimates/pref_het_water_resp_2019_wtp.rds")
+proc.time() - start
+
+####################################################
+######  WATER COLOR AND RESPIRATORY WARNINGS 1 MONTH
+####################################################
+
+start <- proc.time()
+pref_het_water_resp_1m <-  gmnl(choice ~ sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid + sq_watercolor_1m + sq_respirr_1m | 0 ,
+                             data=d,
+                             ranp=c(cov12='n',acc175='n',acc1100='n',acc275='n',acc2100='n'),
+                             model='mixl',
+                             panel=TRUE,
+                             correlation=TRUE,
+                             seed=42,
+                             method = "bhhh",
+                             iterlim = 500,
+                             halton=NA)
+
+summary(pref_het_water_resp_1m)
+saveRDS(pref_het_water_resp_1m,file="output/estimates/pref_het_water_resp_1m.rds")
+pref_het_water_resp_1m_wtp <- wtp.gmnl(pref_het_water_resp_1m, wrt = "bid")
+saveRDS(pref_het_water_resp_1m_wtp,file="output/estimates/pref_het_water_resp_1m_wtp.rds")
+proc.time() - start
+
+####################################################
+##### CORRELLATED RANDOM PARAMETERS - EFFECTS CODING
+####################################################
+
+start <- proc.time()
+pref_effects_coding <-  gmnl(choice ~ sq + cov12ec + acc175ec + acc1100ec + acc275ec + acc2100ec + bid | 0 ,
+              data=d,
+              ranp=c(cov12ec='n',acc175ec='n',acc1100ec='n',acc275ec='n',acc2100ec='n'),
+              model='mixl',
+              panel=TRUE,
+              correlation=TRUE,
+              seed=42,
+              method = "bhhh",
+              iterlim = 500,
+              halton=NA)
+
+summary(pref_effects_coding)
+saveRDS(pref_effects_coding,file="output/estimates/pref_effects_coding.rds")
+proc.time() - start
+pref_effects_coding_wtp <- wtp.gmnl(pref_effects_coding, wrt = "bid")
+saveRDS(pref_effects_coding_wtp,file="output/estimates/pref_effects_coding_wtp.rds")
 
 ## END OF SCRIPT. Have a nice day! 

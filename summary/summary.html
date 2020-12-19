@@ -11,7 +11,7 @@
 
 <meta name="author" content="Klaus Moeltner, Zhenyu Yao, Bryan Parthum" />
 
-<meta name="date" content="2020-12-17" />
+<meta name="date" content="2020-12-18" />
 
 <title>The Value of Information and Warnings about Harmful Algal Blooms</title>
 
@@ -3139,15 +3139,11 @@ div.tocify {
 
 <h1 class="title toc-ignore">The Value of Information and Warnings about Harmful Algal Blooms</h1>
 <h4 class="author">Klaus Moeltner, Zhenyu Yao, Bryan Parthum</h4>
-<h4 class="date">2020-12-17</h4>
+<h4 class="date">2020-12-18</h4>
 
 </div>
 
 
-<!-- <style type="text/css"> -->
-<!--   body{font-size: 0.5em} -->
-<!-- caption {font-size: 1.0em} -->
-<!-- </style> -->
 <div id="summary" class="section level1" number="1">
 <h1><span class="header-section-number">1</span> Summary</h1>
 <p>This document provides an overview of the estimation for the Red Tide Mapping project, and the motivation behind each specification. The models are estimated in <a href="https://rstudio.com/">Rstudio</a>, an open source platform using the <a href="https://www.jstatsoft.org/article/view/v079i02">-gmnl-</a> package (Sarrias and Daziano, 2017).</p>
@@ -3162,19 +3158,112 @@ div.tocify {
 <div id="preference-space-models" class="section level1" number="4">
 <h1><span class="header-section-number">4</span> Preference Space Models</h1>
 <p>We first estimate the model using a simple multinomial logit (MNL). We then introduce the random parameter model (MXL) with both uncorrelated random parameters and fully correlated. We assume the distribution on <em>bid</em> is fixed in order to derive subsequent empirical distributions of willingness to pay (WTP) using the delta method. This means that the marginal utility of money is uniform across respondents.</p>
-<pre class="r"><code>## Export
+<pre class="r"><code>## clean data and prepare for regressions
+
+## read in files
+data &lt;- read_csv(&quot;store/cleaned_data.csv&quot;)
+
+## drop protest. ask Klaus why does protNO==-999 in many cases?
+data %&lt;&gt;% dplyr::filter(protNO!=1)
+
+## keep only relevant columns
+data %&lt;&gt;% dplyr::select(id, set, idset, # choice set variables
+                        choice,sq,cov12,acc175,acc1100,acc275,acc2100,bid, # primary variables of interest
+                        watercolor2018,respirr2018,watercolor2019,respirr2019,watercolor_1m,respirr_1m, # beach observations
+                        income) # individual characteristics, any others?
+
+## sort and generate unique id for each alternative
+data %&lt;&gt;% group_by(idset) %&gt;% mutate(alt = seq(n()))
+data %&lt;&gt;% arrange(id,set,idset)
+data %&lt;&gt;% mutate(bid = as.numeric(bid))
+
+## create interactions for heterogeneity
+data %&lt;&gt;% mutate(sq_income = sq * income,
+                 sq_watercolor2018 = sq * watercolor2018,
+                 sq_watercolor2019 = sq * watercolor2019,
+                 sq_watercolor_1m = sq * watercolor_1m,
+                 sq_respirr2018 = sq * respirr2018,
+                 sq_respirr2019 = sq * respirr2019,
+                 sq_respirr_1m = sq * respirr_1m)
+
+
+## create mlogit data
+d &lt;-  mlogit.data(data,
+                  # shape=&#39;long&#39;,
+                  drop.index = TRUE,
+                  id.var=&#39;id&#39;, ## unique to individual_id
+                  chid.var = &#39;idset&#39;, ## unique to individual_id and card_id
+                  choice=&#39;choice&#39;,
+                  shape=&#39;long&#39;,
+                  alt.var=&#39;alt&#39;) ## the number alternative on each card
+                  # opposite=c(&#39;bid&#39;)) ## bid is already opposite in Klaus&#39; cleaning</code></pre>
+<pre class="r"><code>## Models executed in 2_analyze_preferencespace.R
+
+####################################################
+#######################################  Null Models
+####################################################
+
+null_model &lt;- mlogit(choice ~ sq | 0 , data=d)
+
+####################################################
+#########################################  BASIC MNL
+####################################################
+
+## Klaus&#39; basic MNL: clogit choice sq cov12 acc175 acc1100 acc275 acc2100 bid, group(idset), if protNO~=1
+
+pref_clogit &lt;-  gmnl(choice ~ sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid | 0 ,
+                     data=d,
+                     model=&#39;mnl&#39;)
+
+####################################################
+#######################  INTRODUCE RANDOM PARAMETERS
+####################################################
+
+pref_uncorr &lt;-  gmnl(choice ~ sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid | 0 ,
+                    data=d,
+                    ranp=c(cov12=&#39;n&#39;,acc175=&#39;n&#39;,acc1100=&#39;n&#39;,acc275=&#39;n&#39;,acc2100=&#39;n&#39;),
+                    model=&#39;mixl&#39;,
+                    panel=TRUE,
+                    correlation=FALSE,
+                    seed=42)
+
+####################################################
+#####################  CORRELLATED RANDOM PARAMETERS
+####################################################
+
+pref &lt;-  gmnl(choice ~ sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid | 0 ,
+                     data=d,
+                     ranp=c(cov12=&#39;n&#39;,acc175=&#39;n&#39;,acc1100=&#39;n&#39;,acc275=&#39;n&#39;,acc2100=&#39;n&#39;),
+                     model=&#39;mixl&#39;,
+                     panel=TRUE,
+                     correlation=TRUE,
+                     seed=42,
+                     method = &quot;bhhh&quot;,
+                     iterlim = 500,
+                     halton=NA)</code></pre>
+<pre class="r"><code>## LOAD NULL MODEL
+null_model &lt;- readRDS(&quot;../output/estimates/null_model.rds&quot;)
+
+## LOAD PREFERENCE SPACE MODELS
+pref_clogit         &lt;- readRDS(&quot;../output/estimates/pref_clogit.rds&quot;)
+pref_uncorr         &lt;- readRDS(&quot;../output/estimates/pref_uncorr.rds&quot;)
+pref                &lt;- readRDS(&quot;../output/estimates/pref.rds&quot;)
+
+## Export
+
+## replace getSummary function with one that will work with -gmnl-
 getSummary &lt;- getSummary.gmnl
 
 mtable(&quot;C-logit&quot;=pref_clogit,&quot;MXL Uncorrelated&quot;=pref_uncorr,&quot;MXL Correlated&quot;=pref,
                     digits=3,
                     summary.stats = c(&quot;N&quot;,&quot;Log-likelihood&quot;,&quot;AIC&quot;,&#39;BIC&#39;)) %&gt;%
-  relabel(.,sq = &quot;Status-Quo&quot;,
-        cov12 = &quot;Coverage: 12 Miles&quot;,
-        acc175 = &quot;Accuracy 1: 75%&quot;,
-        acc1100 = &quot;Accuracy 1: 100%&quot;,
-        acc275 = &quot;Accuracy 2: 75%&quot;,
-        acc2100 = &quot;Accuracy 2: 100%&quot;,
-        bid = &#39;Cost&#39;)</code></pre>
+        relabel(.,sq = &quot;Status-Quo&quot;,
+              cov12 = &quot;Coverage: 12 Miles&quot;,
+              acc175 = &quot;Accuracy 1: 75%&quot;,
+              acc1100 = &quot;Accuracy 1: 100%&quot;,
+              acc275 = &quot;Accuracy 2: 75%&quot;,
+              acc2100 = &quot;Accuracy 2: 100%&quot;,
+              bid = &#39;Cost&#39;)</code></pre>
 <pre><code>## 
 ## Calls:
 ## C-logit: gmnl(formula = choice ~ sq + cov12 + acc175 + acc1100 + acc275 + 
@@ -3255,14 +3344,15 @@ mtable(&quot;C-logit&quot;=pref_clogit,&quot;MXL Uncorrelated&quot;=pref_uncorr,
 ##   Significance: *** = p &lt; 0.001; ** = p &lt; 0.01; * = p &lt; 0.05</code></pre>
 <p><br></p>
 <p>Model fit according to McFadden pseudo <span class="math inline">\(\rho^2\)</span>: <span class="math inline">\(1-\frac{LL_{full}}{LL_{null}}\)</span></p>
-<pre class="r"><code>mcfad_r2 &lt;- function(x,y) {round(1-(as.numeric(logLik(x))/as.numeric(logLik(y))),2)}
+<pre class="r"><code>## write function to recover McFadden&#39;s pseudo R2
+mcfad_r2 &lt;- function(x,y) {round(1-(as.numeric(logLik(x))/as.numeric(logLik(y))),2)}
 pref_clogit_r2 &lt;- mcfad_r2(pref_clogit,null_model)
 pref_uncorr_r2 &lt;- mcfad_r2(pref_uncorr,null_model)
 pref_r2        &lt;- mcfad_r2(pref,null_model)
 
 data.frame(row.names = &#39;McFadden \\(\\rho^2\\)&#39;,
           &quot;MNL&quot;=pref_clogit_r2,&quot;MXL Uncorrelated&quot;=pref_uncorr_r2,&quot;MXL Correlated&quot;=pref_r2) %&gt;%
-    kbl() %&gt;% kable_classic(full_width = FALSE)</code></pre>
+           kbl() %&gt;% kable_classic(full_width = FALSE)</code></pre>
 <table class=" lightable-classic" style="font-family: &quot;Arial Narrow&quot;, &quot;Source Sans Pro&quot;, sans-serif; width: auto !important; margin-left: auto; margin-right: auto;">
 <thead>
 <tr>
@@ -3297,15 +3387,47 @@ McFadden <span class="math inline">\(\rho^2\)</span>
 </tbody>
 </table>
 <p><br></p>
-<div id="willingness-to-pay" class="section level2" number="4.1">
-<h2><span class="header-section-number">4.1</span> Willingness to Pay</h2>
-<pre class="r"><code>## LOAD PREFERENCE SPACE WTP 
-pref_clogit_wtp         &lt;- readRDS(&quot;../output/estimates/pref_clogit_wtp.rds&quot;)
-pref_uncorr_wtp         &lt;- readRDS(&quot;../output/estimates/pref_uncorr_wtp.rds&quot;) 
-pref_wtp                &lt;- readRDS(&quot;../output/estimates/pref_wtp.rds&quot;)
+<div id="standard-deviations-of-random-parameters" class="section level2" number="4.1">
+<h2><span class="header-section-number">4.1</span> Standard Deviations of Random Parameters</h2>
+<pre class="r"><code>####################################################
+###############################  STANDARD DEVIATIONS
+####################################################
+vcov(pref, what = &quot;ranp&quot;, type = &quot;sd&quot;, se = &quot;true&quot;)</code></pre>
+<pre><code>## 
+## Standard deviations of the random parameters 
+## 
+##         Estimate Std. Error z-value  Pr(&gt;|z|)    
+## cov12    2.12907    0.25399  8.3825 &lt; 2.2e-16 ***
+## acc175   1.88642    0.28565  6.6041 4.000e-11 ***
+## acc1100  2.89665    0.31809  9.1065 &lt; 2.2e-16 ***
+## acc275   0.45370    0.30445  1.4902    0.1362    
+## acc2100  3.57591    0.61119  5.8507 4.894e-09 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+</div>
+<div id="correlation-coefficients-of-random-parameters" class="section level2" number="4.2">
+<h2><span class="header-section-number">4.2</span> Correlation Coefficients of Random Parameters</h2>
+<pre class="r"><code>####################################################
+################################  CORELLATION MATRIX
+####################################################
+vcov(pref, what = &quot;ranp&quot;, type = &quot;cor&quot;)</code></pre>
+<pre><code>##             cov12    acc175   acc1100    acc275   acc2100
+## cov12   1.0000000 0.5049128 0.7206581 0.4347215 0.2543821
+## acc175  0.5049128 1.0000000 0.9609783 0.5926936 0.1423637
+## acc1100 0.7206581 0.9609783 1.0000000 0.6352454 0.1847918
+## acc275  0.4347215 0.5926936 0.6352454 1.0000000 0.5898480
+## acc2100 0.2543821 0.1423637 0.1847918 0.5898480 1.0000000</code></pre>
+<p><br></p>
+</div>
+<div id="willingness-to-pay" class="section level2" number="4.3">
+<h2><span class="header-section-number">4.3</span> Willingness to Pay</h2>
+<pre class="r"><code>pref_clogit_wtp &lt;- wtp.gmnl(pref_clogit, wrt = &quot;bid&quot;)
+pref_uncorr_wtp &lt;- wtp.gmnl(pref_uncorr, wrt = &quot;bid&quot;)
+pref_wtp        &lt;- wtp.gmnl(pref, wrt = &quot;bid&quot;)</code></pre>
+<pre class="r"><code>## Write a function to make significance stars
+stars &lt;- function(x) {ifelse(x[,4]&lt;0.001,&#39;***&#39;,ifelse(x[,4]&lt;0.01 &amp; x[,4]&gt;=0.001,&#39;**&#39;,ifelse(x[,4]&lt;0.05 &amp; x[,4]&gt;=0.01,&#39;*&#39;,&#39;&#39;)))}
 
-stars &lt;- function(x) {ifelse(x[,4]&lt;=0.001,&#39;***&#39;,ifelse(x[,4]&lt;=0.01 &amp; x[,4]&gt;0.001,&#39;**&#39;,ifelse(x[,4]&lt;=0.05 &amp; x[,4]&gt;0.01,&#39;*&#39;,&#39;&#39;)))}
-
+## Write a function to create bounds on WTP
 ci &lt;- function(x,y) {paste0(&#39;[&#39;, round(x-(1.96*y[,2]),2), &#39;, &#39;, round(x+(1.96*y[,2]),2),&#39;]&#39;)}
 
 pref_clogit_wtp %&lt;&gt;% as.data.frame() %&gt;% slice(1:6) %&gt;%
@@ -3348,10 +3470,10 @@ wtp &lt;- cbind(pref_clogit_wtp,pref_uncorr_wtp,pref_wtp) %&gt;%
        mutate(Attribute = c(&quot;Status-Quo&quot;,&quot;&quot;,&quot;Coverage: 12 Miles&quot;,&quot;&quot;,&quot;Accuracy 1: 75%&quot;,&quot;&quot;,&quot;Accuracy 1: 100%&quot;,&quot;&quot;,&quot;Accuracy 2: 75%&quot;,&quot;&quot;,&quot;Accuracy 2: 100%&quot;,&quot;&quot;))
 
 kable(wtp, caption=&#39;Willingness to Pay from Preference-Space&#39;,booktabs = TRUE, align = c(&#39;l&#39;,&#39;c&#39;,&#39;c&#39;,&#39;c&#39;)) %&gt;% kable_classic() %&gt;% kable_styling(font_size = 16) %&gt;%
-  footnote(&#39;95% confidence intervals in brackets derived using the delta method. \\(^{*}\\)p&lt;0.1; \\(^{**}\\)p&lt;0.05; \\(^{***}\\)p&lt;0.01&#39;,footnote_as_chunk = T)</code></pre>
+      footnote(&#39;95% confidence intervals in brackets derived using the delta method. \\(^{*}\\)p&lt;0.1; \\(^{**}\\)p&lt;0.05; \\(^{***}\\)p&lt;0.01&#39;,footnote_as_chunk = T)</code></pre>
 <table class=" lightable-classic table" style="font-family: &quot;Arial Narrow&quot;, &quot;Source Sans Pro&quot;, sans-serif; margin-left: auto; margin-right: auto; font-size: 16px; margin-left: auto; margin-right: auto;border-bottom: 0;">
 <caption style="font-size: initial !important;">
-<span id="tab:unnamed-chunk-5">Table 4.1: </span>Willingness to Pay from Preference-Space
+<span id="tab:unnamed-chunk-9">Table 4.1: </span>Willingness to Pay from Preference-Space
 </caption>
 <thead>
 <tr>
@@ -3541,9 +3663,11 @@ Accuracy 2: 100%
 </tr>
 </tfoot>
 </table>
+<p><br></p>
 </div>
-<div id="preference-heterogeneity" class="section level2" number="4.2">
-<h2><span class="header-section-number">4.2</span> Preference Heterogeneity</h2>
+</div>
+<div id="preference-heterogeneity" class="section level1" number="5">
+<h1><span class="header-section-number">5</span> Preference Heterogeneity</h1>
 <p>We introduce preference heterogeneity by interacting past environmental observations at the three nearest beaches to each respondent’s recorded zip code (inverse gravity distance weighting). These are averages for 2019 and the one month prior to when the respondent took the survey.</p>
 <ul>
 <li>Water color:
@@ -3561,8 +3685,73 @@ Accuracy 2: 100%
 </ul></li>
 </ul>
 <p>All models assume fully correlated random parameters, with <em>bid</em> fixed.</p>
-<pre class="r"><code>## Export
+<pre class="r"><code>## Models executed in 2_analyze_preferencespace.R
 
+####################################################
+#######################################  WATER COLOR
+####################################################
+
+pref_het_water &lt;-  gmnl(choice ~ sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid + sq_watercolor2019 + sq_watercolor_1m | 0 ,
+                   data=d,
+                   ranp=c(cov12=&#39;n&#39;,acc175=&#39;n&#39;,acc1100=&#39;n&#39;,acc275=&#39;n&#39;,acc2100=&#39;n&#39;,sq_watercolor2019=&#39;n&#39;,sq_watercolor_1m=&#39;n&#39;),
+                   model=&#39;mixl&#39;,
+                   panel=TRUE,
+                   correlation=TRUE,
+                   seed=42,
+                   method = &quot;bhhh&quot;,
+                   iterlim = 500,
+                   halton=NA)
+
+####################################################
+##############  WATER COLOR AND RESPIRATORY WARNINGS
+####################################################
+
+pref_het_water_resp &lt;-  gmnl(choice ~ sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid + sq_watercolor2019 + sq_watercolor_1m + sq_respirr2019 + sq_respirr_1m | 0 ,
+                        data=d,
+                        ranp=c(cov12=&#39;n&#39;,acc175=&#39;n&#39;,acc1100=&#39;n&#39;,acc275=&#39;n&#39;,acc2100=&#39;n&#39;,sq_watercolor2019=&#39;n&#39;,sq_watercolor_1m=&#39;n&#39;,sq_respirr2019=&#39;n&#39;,sq_respirr_1m=&#39;n&#39;),
+                        model=&#39;mixl&#39;,
+                        panel=TRUE,
+                        correlation=TRUE,
+                        seed=42,
+                        method = &quot;bhhh&quot;,
+                        iterlim = 500,
+                        halton=NA)
+
+####################################################
+#########  WATER COLOR AND RESPIRATORY WARNINGS 2019
+####################################################
+
+pref_het_water_resp_2019 &lt;-  gmnl(choice ~ sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid + sq_watercolor2019 + sq_respirr2019 | 0 ,
+                             data=d,
+                             ranp=c(cov12=&#39;n&#39;,acc175=&#39;n&#39;,acc1100=&#39;n&#39;,acc275=&#39;n&#39;,acc2100=&#39;n&#39;,sq_watercolor2019=&#39;n&#39;,sq_respirr2019=&#39;n&#39;),
+                             model=&#39;mixl&#39;,
+                             panel=TRUE,
+                             correlation=TRUE,
+                             seed=42,
+                             method = &quot;bhhh&quot;,
+                             iterlim = 500,
+                             halton=NA)
+
+####################################################
+######  WATER COLOR AND RESPIRATORY WARNINGS 1 MONTH
+####################################################
+
+pref_het_water_resp_1m &lt;-  gmnl(choice ~ sq + cov12 + acc175 + acc1100 + acc275 + acc2100 + bid + sq_watercolor_1m + sq_respirr_1m | 0 ,
+                             data=d,
+                             ranp=c(cov12=&#39;n&#39;,acc175=&#39;n&#39;,acc1100=&#39;n&#39;,acc275=&#39;n&#39;,acc2100=&#39;n&#39;,sq_watercolor_1m=&#39;n&#39;,sq_respirr_1m=&#39;n&#39;),
+                             model=&#39;mixl&#39;,
+                             panel=TRUE,
+                             correlation=TRUE,
+                             seed=42,
+                             method = &quot;bhhh&quot;,
+                             iterlim = 500,
+                             halton=NA)</code></pre>
+<pre class="r"><code>## LOAD PREFERENCE SPACE MODELS
+pref                &lt;- readRDS(&quot;../output/estimates/pref.rds&quot;)
+pref_het_water      &lt;- readRDS(&quot;../output/estimates/pref_het_water.rds&quot;)
+pref_het_water_resp &lt;- readRDS(&quot;../output/estimates/pref_het_water_resp.rds&quot;)
+
+## Export
 mtable(&quot;MXL&quot;=pref,&quot;MXL Water Color&quot;=pref_het_water,&quot;MXL Water and Respiratory&quot;=pref_het_water_resp,
                     digits=3,
                     summary.stats = c(&quot;N&quot;,&quot;Log-likelihood&quot;,&quot;AIC&quot;,&#39;BIC&#39;)) %&gt;%
@@ -3721,9 +3910,9 @@ mtable(&quot;MXL&quot;=pref,&quot;MXL Water Color&quot;=pref_het_water,&quot;MXL
 ##   Significance: *** = p &lt; 0.001; ** = p &lt; 0.01; * = p &lt; 0.05</code></pre>
 <p><br></p>
 <p>Model fit according to McFadden pseudo <span class="math inline">\(\rho^2\)</span>: <span class="math inline">\(1-\frac{LL_{full}}{LL_{null}}\)</span></p>
-<pre class="r"><code>pref_r2        &lt;- mcfad_r2(pref,null_model)
-pref_het_water_r2        &lt;- mcfad_r2(pref_het_water,null_model)
-pref_het_water_resp_r2        &lt;- mcfad_r2(pref_het_water_resp,null_model)
+<pre class="r"><code>pref_r2                 &lt;- mcfad_r2(pref,null_model)
+pref_het_water_r2       &lt;- mcfad_r2(pref_het_water,null_model)
+pref_het_water_resp_r2  &lt;- mcfad_r2(pref_het_water_resp,null_model)
 
 
 data.frame(row.names = &#39;McFadden \\(\\rho^2\\)&#39;,
@@ -3763,16 +3952,15 @@ McFadden <span class="math inline">\(\rho^2\)</span>
 </tbody>
 </table>
 <p><br></p>
-</div>
-<div id="willingness-to-pay-1" class="section level2" number="4.3">
-<h2><span class="header-section-number">4.3</span> Willingness to Pay</h2>
-<pre class="r"><code>## LOAD PREFERENCE SPACE WTP 
-pref_wtp                &lt;- readRDS(&quot;../output/estimates/pref_wtp.rds&quot;)
-pref_het_water_wtp      &lt;- readRDS(&quot;../output/estimates/pref_het_water_wtp.rds&quot;)
-pref_het_water_resp_wtp &lt;- readRDS(&quot;../output/estimates/pref_het_water_resp_wtp.rds&quot;)
+<div id="willingness-to-pay-with-status-quo-heterogeneity" class="section level2" number="5.1">
+<h2><span class="header-section-number">5.1</span> Willingness to Pay with Status Quo Heterogeneity</h2>
+<pre class="r"><code>pref_wtp                 &lt;- wtp.gmnl(pref, wrt = &quot;bid&quot;)
+pref_het_water_wtp       &lt;- wtp.gmnl(pref_het_water, wrt = &quot;bid&quot;)
+pref_het_water_resp_wtp  &lt;- wtp.gmnl(pref_het_water_resp, wrt = &quot;bid&quot;)</code></pre>
+<pre class="r"><code>## Write a function to make significance stars
+stars &lt;- function(x) {ifelse(x[,4]&lt;0.001,&#39;***&#39;,ifelse(x[,4]&lt;0.01 &amp; x[,4]&gt;=0.001,&#39;**&#39;,ifelse(x[,4]&lt;0.05 &amp; x[,4]&gt;=0.01,&#39;*&#39;,&#39;&#39;)))}
 
-stars &lt;- function(x) {ifelse(x[,4]&lt;=0.001,&#39;***&#39;,ifelse(x[,4]&lt;=0.01 &amp; x[,4]&gt;0.001,&#39;**&#39;,ifelse(x[,4]&lt;=0.05 &amp; x[,4]&gt;0.01,&#39;*&#39;,&#39;&#39;)))}
-
+## Write a function to create bounds on WTP
 ci &lt;- function(x,y) {paste0(&#39;[&#39;, round(x-(1.96*y[,2]),2), &#39;, &#39;, round(x+(1.96*y[,2]),2),&#39;]&#39;)}
 
 pref_wtp %&lt;&gt;% as.data.frame() %&gt;% slice(1:6) %&gt;%
@@ -3819,7 +4007,7 @@ kable(wtp, caption=&#39;Willingness to Pay from Preference-Space&#39;,booktabs =
   footnote(&#39;95% confidence intervals in brackets derived using the delta method. \\(^{*}\\)p&lt;0.1; \\(^{**}\\)p&lt;0.05; \\(^{***}\\)p&lt;0.01&#39;,footnote_as_chunk = T)</code></pre>
 <table class=" lightable-classic table" style="font-family: &quot;Arial Narrow&quot;, &quot;Source Sans Pro&quot;, sans-serif; margin-left: auto; margin-right: auto; font-size: 16px; margin-left: auto; margin-right: auto;border-bottom: 0;">
 <caption style="font-size: initial !important;">
-<span id="tab:unnamed-chunk-9">Table 4.2: </span>Willingness to Pay from Preference-Space
+<span id="tab:unnamed-chunk-14">Table 5.1: </span>Willingness to Pay from Preference-Space
 </caption>
 <thead>
 <tr>

@@ -49,6 +49,8 @@ pref_uncorr         <- readRDS("output/estimates/pref_uncorr.rds")
 pref                <- readRDS("output/estimates/pref.rds")
 pref_het_water      <- readRDS("output/estimates/pref_het_water.rds")
 pref_het_water_resp <- readRDS("output/estimates/pref_het_water_resp.rds")
+pref_het_water_resp_1m <- readRDS("output/estimates/pref_het_water_resp_1m.rds")
+pref_het_water_resp_2019 <- readRDS("output/estimates/pref_het_water_resp_2019.rds")
 
 ## LOAD PREFERENCE SPACE WTP 
 pref_clogit_wtp         <- readRDS("output/estimates/pref_clogit_wtp.rds")
@@ -56,6 +58,8 @@ pref_uncorr_wtp         <- readRDS("output/estimates/pref_uncorr_wtp.rds")
 pref_wtp                <- readRDS("output/estimates/pref_wtp.rds")
 pref_het_water_wtp      <- readRDS("output/estimates/pref_het_water_wtp.rds")
 pref_het_water_resp_wtp <- readRDS("output/estimates/pref_het_water_resp_wtp.rds")
+pref_het_water_resp_1m_wtp <- readRDS("output/estimates/pref_het_water_resp_1m_wtp.rds")
+pref_het_water_resp_2019_wtp <- readRDS("output/estimates/pref_het_water_resp_2019_wtp.rds")
 
 # ## LOAD WTP-SPACE MODELS
 # wtp_pooled  <- readRDS(file="estimates/wtp_pooled.rds")
@@ -70,10 +74,6 @@ pref_het_water_resp_wtp <- readRDS("output/estimates/pref_het_water_resp_wtp.rds
 ####################################################
 ##################################  PREFERENCE SPACE
 ####################################################
-
-## TESTS PREFERENCE-SPACE
-# pref_clogit_lrt     <- round(lrtest(pref_clogit, null_model)[2,4],2)
-# pref_uncorr_lrt     <- round(lrtest(pref_uncorr, null_model)[2,4],2)
 
 mcfad_r2 <- function(x,y) {round(1-(as.numeric(logLik(x))/as.numeric(logLik(y))),2)}
 pref_clogit$sumstat$McFadden  <- mcfad_r2(pref_clogit,null_model)
@@ -94,9 +94,7 @@ pref_space <- mtable("C-logit"=pref_clogit,"MXL Uncorrelated"=pref_uncorr,"MXL C
         acc275 = "Accuracy 2: 75%",
         acc2100 = "Accuracy 2: 100%",
         bid = 'Cost')
-        
-write.mtable(pref_space, file="output/tables/pref_space.tex", format="LaTeX")
-# write.mtable(pref_space, file="output/tables/pref_space.csv", format="delim")
+# write.mtable(pref_space, file="output/tables/pref_space.tex", format="LaTeX")
 
 ####################################################
 ############################  PREFERENCE SPACE - WTP
@@ -134,63 +132,5 @@ vcov(pref_urban, what = "ranp", type = "sd", se = "true")
 vcov(wtp_pooled, what = "ranp", type = "cor")
 vcov(wtp_rural, what = "ranp", type = "cor")
 vcov(wtp_urban, what = "ranp", type = "cor")
-
-
-# ####################################################
-# ######################################  MAIN RESULTS
-# ####################################################
-# 
-# ## TESTS
-# lrt_wtp_pooled <- round(lrtest(wtp_pooled, null_pooled)[2,4],2)
-# lrt_wtp_rural <- round(lrtest(wtp_rural, null_rural)[2,4],2)
-# lrt_wtp_urban <- round(lrtest(wtp_urban, null_urban)[2,4],2)
-# lrt_wtp_asc <- round(lrtest(wtp_asc, null_pooled)[2,4],2)
-# 
-# lrt <- round(2*(as.numeric(logLik(wtp_urban))+as.numeric(logLik(wtp_rural))-as.numeric(logLik(wtp_pooled))),2)
-# qchisq(p = 0.95, df = 63)
-# lrt > qchisq(p = 0.95, df = 63)
-# pchisq(lrt, 63,lower.tail=F)
-# 
-# lrt.asc <- round(2*(as.numeric(logLik(wtp_asc))-as.numeric(logLik(wtp_pooled))),2)
-# qchisq(p = 0.95, df = 16)
-# lrt.asc > qchisq(p = 0.95, df = 16)
-# pchisq(lrt, 16,lower.tail=F)
-# 
-# mcf_pooled = round(1-(as.numeric(logLik(wtp_pooled))/as.numeric(logLik(null_pooled))),2)
-# mcf_rural = round(1-(as.numeric(logLik(wtp_rural))/as.numeric(logLik(null_rural))),2)
-# mcf_urban = round(1-(as.numeric(logLik(wtp_urban))/as.numeric(logLik(null_urban))),2)
-# mcf_asc = round(1-(as.numeric(logLik(wtp_asc))/as.numeric(logLik(null_pooled))),2)
-# 
-# wtp_space <- mtable("Full Sample"=wtp_pooled,"ASC Heterogeneity"=wtp_asc,"Rural"=wtp_rural,"Urban"=wtp_urban,
-#                digits=2,
-#                summary.stats = c("N","Log-likelihood","AIC",'BIC'))
-# write.mtable(wtp_space, file = "output/tables/wtp_space.doc", format='delim')
-# lrt
-# lrt.asc
-# mcf_pooled
-# mcf_asc
-# mcf_rural
-# mcf_urban
-# 
-# ####################################################
-# #############################  CERTAINTY ADJUSTMENTS
-# ####################################################
-# 
-# ## TESTS
-# lrt_wtp_pooled <- round(lrtest(wtp_pooled, null_pooled)[2,4],2)
-# lrt_wtp_cert1 <- round(lrtest(wtp_cert1, null_pooled)[2,4],2)
-# lrt_wtp_cert2 <- round(lrtest(wtp_cert2, null_pooled)[2,4],2)
-# 
-# mcf_pooled = round(1-(as.numeric(logLik(wtp_pooled))/as.numeric(logLik(null_pooled))),2)
-# mcf_cert1 = round(1-(as.numeric(logLik(wtp_cert1))/as.numeric(logLik(null_pooled))),2)
-# mcf_cert2 = round(1-(as.numeric(logLik(wtp_cert2))/as.numeric(logLik(null_pooled))),2)
-# 
-# wtp_certainty <- mtable("No Adjustment"=wtp_pooled,"Cartainty Adj. 1"=wtp_cert1,"Cartainty Adj. 2"=wtp_cert2,
-#                     digits=2,
-#                     summary.stats = c("N","Log-likelihood","AIC"))
-# write.mtable(wtp_certainty, file = "output/tables/wtp_certainty.doc", format='delim')
-# mcf_pooled
-# mcf_cert1
-# mcf_cert2
 
 ## END OF SCRIPT. Have a great day!
